@@ -22,6 +22,9 @@ json string also available from
 http://IPADDRESS/json/TempC
 
 see  https://github.com/gmag11/FSBrowserNG  for WiFi setup details
+read notes carefully, a file tweak is required to get time.h to compile
+
+Data files for SPIFFS in data folder
 
 NOTE !!
 
