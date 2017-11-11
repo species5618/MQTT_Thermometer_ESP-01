@@ -1,0 +1,109 @@
+﻿<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<a href="admin.html"  class="btn btn--s">&lt;</a>&nbsp;&nbsp;<strong>General Settings</strong>
+	<hr>
+	<form action="/pconfig" method="post">
+        <input type="hidden" name="afterpost" value="/mqtt.html">
+		<table border="0"  cellspacing="0" cellpadding="3" >
+            <tr>
+                <td align="right">MQTT ClientID</td>
+                <td>
+                    <input type="text" id="MQTTClientID" name="MQTTClientID" value="">
+                </td>
+            </tr>
+            <tr>
+                <td align="right">MQTT User Name</td>
+                <td>
+                    <input type="text" id="MQTTUser" name="MQTTUser" value="">
+                </td>
+            </tr>
+            <tr>
+                <td align="right">MQTT Password</td>
+                <td>
+                    <input type="text" id="MQTTPass" name="MQTTPass" value="">
+                </td>
+            </tr>
+            <tr>
+                <td align="right">MQTT Topic</td>
+                <td>
+                    <input type="text" id="MQTTTopic" name="MQTTTopic" value="">
+                </td>
+            </tr>
+            <tr>
+                <td align="right">MQTT Host</td>
+                <td>
+                    <input type="text" id="MQTTHost" name="MQTTHost" value="">
+                </td>
+            </tr>
+            <tr>
+                <td align="right">MQTT Port</td>
+                <td>
+                    <input type="text" id="MQTTPort" name="MQTTPort" value="">
+                </td>
+            </tr>
+            <tr>
+                <td align="right">Reading Interval</td>
+                <td>
+                    <input type="text" id="sampleInterval" name="sampleInterval" value="">
+                </td>
+            </tr>
+            <tr>
+                <td align="right">MQTT Publish Interval</td>
+                <td>
+                    <input type="text" id="dTime" name="dTime" value="">
+                </td>
+            </tr>
+            <tr>
+                <td align="right">Min Max Interval</td>
+                <td>
+                    <input type="text" id="minMaxInterval" name="minMaxInterval" value="">
+                </td>
+            </tr>
+            <tr>
+                <td align="right">Filter </td>
+                <td>
+                    <input type="text" id="Filter" name="Filter" value="">
+                </td>
+            </tr>
+			<tr>
+					<td colspan="2" align="center">
+					<input type="submit" style="width:150px" class="btn btn--m btn--blue" value="Save"></td>
+				</tr>
+			</table>
+		</form>
+		<script>
+
+
+
+			window.onload = function ()
+			{
+				load("style.css","css", function()
+				{
+					load("microajax.js","js", function()
+					{
+                        setValues("/rconfig/MQTTUser/MQTTPass/MQTTTopic/MQTTHost/MQTTPort/MQTTClientID/dTime/minMaxInterval/Filter/sampleInterval");
+					});
+				});
+			}
+			function load(e, t, n) {
+				if ("js" == t) {
+					var a = document.createElement("script");
+					a.src = e, a.type = "text/javascript",
+					a.async = !1,
+					a.onload = function () {
+						n()
+					},
+					document.getElementsByTagName("head")[0].appendChild(a)
+				} else if ("css" == t) {
+					var a = document.createElement("link");
+					a.href = e, a.rel = "stylesheet", a.type = "text/css",
+					a.async = !1,
+					a.onload = function () {
+						n()
+					},
+					document.getElementsByTagName("head")[0].appendChild(a)
+				}
+			}
+
+		</script>
