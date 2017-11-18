@@ -6,20 +6,44 @@
 
 //#define DEBUGLOG Serial.println
 
+//#define PRODUCTION  // remove cemment to disable telnet debug 
+
+#define USE_MDNS
+
 #include <PubSubClient.h>
+#include <Ticker.h>
+
+//experimental !!!
+#ifdef ESP32
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPmDNS.h>
+#elif defined ESP8266
 #include <ESP8266WiFi.h>
+#include <ESPAsyncTCP.h>
+#include <ESP8266mDNS.h>
+#include <Hash.h>
+//#include <ESP8266NetBIOS.h>
+#else
+#error Platform not supported
+#endif
+
 #include "FS.h"
 #include <WiFiClient.h>
 #include <TimeLib.h>
 #include <NtpClientLib.h>
-#include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <ESP8266mDNS.h>
-#include <Ticker.h>
 #include <ArduinoOTA.h>
 #include <ArduinoJson.h>
 #include "FSWebServerLib.h"
-#include <Hash.h>
+
+#ifndef PRODUCTION // Not in PRODUCTION
+#include "RemoteDebug.h"        //https://github.com/JoaoLopesF/RemoteDebug
+RemoteDebug Debug;
+uint32_t mLastTime = 0;
+uint32_t mTimeSeconds = 0;
+
+#endif
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -32,8 +56,6 @@ OneWire oneWire(ONE_WIRE_BUS);
 
 // Pass our oneWire reference to Dallas Temperature.
 DallasTemperature sensors(&oneWire);
-
-
 
 String configMQTT_User = "";
 String configMQTT_Pass = "";
@@ -116,6 +138,7 @@ void  callbackREST(AsyncWebServerRequest *request)
 	request->send(200, "text/plain", values);
 	values = "";
 }
+
 void  callbackJSON(AsyncWebServerRequest *request)
 {
 	//its possible to test the url and do different things, 
@@ -149,7 +172,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 void reconnect() {
 	// Loop until we're reconnected
-	while (!client.connected()) {
+	while (!client.connected() && testMqtt) {
 		Serial.println("Attempting MQTT connection...");
 		// Attempt to connect
 		Serial.print("configMQTT_ClientID ");
@@ -198,14 +221,65 @@ void reconnect() {
 
 }
 
+#ifndef PRODUCTION // Not in PRODUCTION
+
+// Process commands from RemoteDebug
+
+void processCmdRemoteDebug() {
+
+	String lastCmd = Debug.getLastCommand();
+
+	if (lastCmd == "bench1") {
+
+		// Benchmark 1 - Printf
+
+		if (Debug.isActive(Debug.ANY)) {
+			Debug.println("* Benchmark 1 - one Printf");
+		}
+
+		uint32_t timeBegin = millis();
+		uint8_t times = 50;
+
+		for (uint8_t i = 1; i <= times; i++) {
+			if (Debug.isActive(Debug.ANY)) {
+				Debug.printf("%u - 1234567890 - AAAA\n", i);
+			}
+		}
+
+		if (Debug.isActive(Debug.ANY)) {
+			Debug.printf("* Time elapsed for %u printf: %u ms.\n", times, (millis() - timeBegin));
+		}
+
+	}
+	else if (lastCmd == "bench2") {
+
+		// Benchmark 2 - Print/println
+
+		if (Debug.isActive(Debug.ANY)) {
+			Debug.println("* Benchmark 2 - Print/Println");
+		}
+
+		uint32_t timeBegin = millis();
+		uint8_t times = 50;
+
+		for (uint8_t i = 1; i <= times; i++) {
+			if (Debug.isActive(Debug.ANY)) {
+				Debug.print(i);
+				Debug.print(" - 1234567890");
+				Debug.println(" - AAAA");
+			}
+		}
+
+		if (Debug.isActive(Debug.ANY)) {
+			Debug.printf("* Time elapsed for %u printf: %u ms.\n", times, (millis() - timeBegin));
+		}
+	}
+}
+#endif
 
 void setup() {
 
-
-
-
-	//test default
-
+	String HOST_NAME = "ESP";
 
 	// WiFi is started inside library
 	SPIFFS.begin(); // Not really needed, checked inside library and started if needed
@@ -252,10 +326,9 @@ void setup() {
 		client.setServer(configMQTT_Host.c_str(), configMQTT_Port);
 		client.setCallback(callback);
 
-
 		// init MQTT
 		reconnect();
-
+		HOST_NAME = configMQTT_ClientID;
 	}
 
 	sensors.begin();
@@ -266,14 +339,59 @@ void setup() {
 	sensors.requestTemperatures(); // Send the command to get temperatures
 	delay(100);
 
-	
+
+#if defined (USE_MDNS) // && defined(HOSTNAME)
+	if (MDNS.begin(HOST_NAME.c_str())) {
+		Serial.print("* MDNS responder started. Hostname -> ");
+		Serial.println(configMQTT_ClientID);
+	}
+	// Register the services
+
+	MDNS.addService("http", "tcp", 80);   // Web server - discomment if you need this
+	MDNS.addService("telnet", "tcp", 23); // Telnet server RemoteDebug
+#endif
+
+#ifndef PRODUCTION // Not in PRODUCTION
+
+	Debug.begin(HOST_NAME); // Initiaze the telnet server
+	Debug.setResetCmdEnabled(true); // Enable the reset command
+
+									//Debug.showDebugLevel(false); // To not show debug levels
+									//Debug.showTime(true); // To show time
+									//Debug.showProfiler(true); // To show profiler - time between messages of Debug
+									// Good to "begin ...." and "end ...." messages
+
+	Debug.showProfiler(true); // Profiler
+	Debug.showColors(true); // Colors
+
+							// Debug.setSerialEnabled(true); // if you wants serial echo - only recommended if ESP8266 is plugged in USB
+
+	//String helpCmd = "bench1 - Benchmark 1\n";
+	//helpCmd.concat("bench2 - Benchmark 2");
+
+	//Debug.setHelpProjectsCmds(helpCmd);
+	Debug.setCallBackProjectCmds(&processCmdRemoteDebug);
+
+	// This sample
+
+	Serial.println("* Arduino RemoteDebug Library");
+	Serial.println("*");
+	Serial.print("* WiFI connected. IP address: ");
+	Serial.println(WiFi.localIP());
+	Serial.println("* Please use the telnet client (telnet for Mac/Unix or putty and others for Windows)");
+	Serial.println("* This sample will send messages of debug in all levels.");
+	Serial.println("* Please try change debug level in telnet, to see how it works");
+	Serial.println("*");
+
+#endif
+
 }
 
 void loop() {
 	/* add main program code here */
 	currentMillis = millis();
 
-	if (((currentMillis - previousMillis2) > (sampleInterval * 1000)) || (TempC < -90))
+	if (((currentMillis - previousMillis2) > (sampleInterval * 1000)) || (TempC < -90 && TempC != -127))
 	{
 		ESPHTTPServer.load_user_config("Filter", filter);
 		ESPHTTPServer.load_user_config("sampleInterval", sampleInterval);
@@ -374,7 +492,6 @@ void loop() {
 		}
 	
 	}
-
 	if ((currentMillis - previousMillis) > (dTime * 1000)) 
 	{
 		previousMillis = millis();
@@ -397,7 +514,53 @@ void loop() {
 
 	// DO NOT REMOVE. Attend OTA update from Arduino IDE
 	ESPHTTPServer.handle();
-
 	client.loop();
+
+	// Each second
+#ifndef PRODUCTION // Not in PRODUCTION
+	// Each second
+	if ((millis() - mLastTime) >= 1000) {
+
+		// Time
+
+		mLastTime = millis();
+
+		mTimeSeconds++;
+
+
+
+
+		// Debug the time (verbose level)
+
+		if (Debug.isActive(Debug.VERBOSE)) {
+			Debug.printf("* Time: %u seconds (VERBOSE)\n", mTimeSeconds);
+		}
+
+		if (mTimeSeconds % 5 == 0) { // Each 5 seconds
+
+									 // Debug levels
+
+			//if (Debug.isActive(Debug.VERBOSE)) {
+			//	Debug.println("* This is a message of debug level VERBOSE");
+			//}
+			//if (Debug.isActive(Debug.DEBUG)) {
+			//	Debug.println("* This is a message of debug level DEBUG");
+			//}
+			//if (Debug.isActive(Debug.INFO)) {
+			//	Debug.println("* This is a message of debug level INFO");
+			//}
+			//if (Debug.isActive(Debug.WARNING)) {
+			//	Debug.println("* This is a message of debug level WARNING");
+			//}
+			//if (Debug.isActive(Debug.ERROR)) {
+			//	Debug.println("* This is a message of debug level ERROR");
+			//}
+		}
+
+	}
+
+	Debug.handle();
+#endif
+
 
 }
